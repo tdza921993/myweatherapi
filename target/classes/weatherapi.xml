@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:ws="http://www.mulesoft.org/schema/mule/ws"
+	xmlns:dw="http://www.mulesoft.org/schema/mule/ee/dw"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:spring="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ws http://www.mulesoft.org/schema/mule/ws/current/mule-ws.xsd
+http://www.mulesoft.org/schema/mule/ee/dw http://www.mulesoft.org/schema/mule/ee/dw/current/dw.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/apikit http://www.mulesoft.org/schema/mule/apikit/current/mule-apikit.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd">
+    <http:listener-config name="weatherapi-httpListenerConfig" host="0.0.0.0" port="8081" doc:name="HTTP Listener Configuration"/>
+    <apikit:config name="weatherapi-config" raml="weatherapi.raml" consoleEnabled="false" doc:name="Router"/>
+    <ws:consumer-config name="Web_Service_Consumer" wsdlLocation="http://www.webservicex.com/globalweather.asmx?WSDL" service="GlobalWeather" port="GlobalWeatherSoap" serviceAddress="http://www.webservicex.com/globalweather.asmx" doc:name="Web Service Consumer"/>
+    <flow name="weatherapi-main">
+        <http:listener config-ref="weatherapi-httpListenerConfig" path="/api/*" doc:name="HTTP"/>
+        <apikit:router config-ref="weatherapi-config" doc:name="APIkit Router"/>
+        <exception-strategy ref="weatherapi-apiKitGlobalExceptionMapping" doc:name="Reference Exception Strategy"/>
+    </flow>
+    <flow name="weatherapi-console">
+        <http:listener config-ref="weatherapi-httpListenerConfig" path="/console/*" doc:name="HTTP"/>
+        <apikit:console config-ref="weatherapi-config" doc:name="APIkit Console"/>
+    </flow>
+    <flow name="get:/GetCitiesByCountry:weatherapi-config">
+        <set-variable variableName="CountryName" value="#[message.inboundProperties.'http.query.params'.CountryName]" doc:name="Variable"/>
+        <logger message="Reached + #[flowVars.CountryName]" level="INFO" doc:name="Logger"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/xml
+%namespace ns0 http://www.webserviceX.NET
+---
+{
+	ns0#GetCitiesByCountry: {
+		ns0#CountryName: flowVars.CountryName
+	}
+}
+]]></dw:set-payload>
+        </dw:transform-message>
+        <logger level="INFO" doc:name="Logger" message="#[payload]"/>
+        <ws:consumer config-ref="Web_Service_Consumer" operation="GetCitiesByCountry" doc:name="Web Service Consumer"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/xml
+---
+	payload]]></dw:set-payload>
+        </dw:transform-message>
+    </flow>
+    <flow name="get:/GetWeather:weatherapi-config">
+        <message-properties-transformer scope="invocation" doc:name="Message Properties">
+            <add-message-property key="CityName" value="#[message.inboundProperties.'http.query.params'.CityName]"/>
+            <add-message-property key="CountryName" value="#[message.inboundProperties.'http.query.params'.CountryName]"/>
+        </message-properties-transformer>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/xml
+%namespace ns0 http://www.webserviceX.NET
+---
+{
+	ns0#GetWeather: {
+		ns0#CityName: flowVars.CityName,
+		ns0#CountryName: flowVars.CountryName
+	}
+}]]></dw:set-payload>
+        </dw:transform-message>
+        <ws:consumer config-ref="Web_Service_Consumer" operation="GetWeather" doc:name="Web Service Consumer"/>
+        <dw:transform-message doc:name="Transform Message">
+            <dw:set-payload><![CDATA[%dw 1.0
+%output application/xml
+---
+	payload]]></dw:set-payload>
+        </dw:transform-message>
+    </flow>
+    <apikit:mapping-exception-strategy name="weatherapi-apiKitGlobalExceptionMapping">
+        <apikit:mapping statusCode="404">
+            <apikit:exception value="org.mule.module.apikit.exception.NotFoundException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{&quot;message&quot;: &quot;Country not found&quot;}" doc:name="Set Payload"/>
+        </apikit:mapping>
+        <apikit:mapping statusCode="405">
+            <apikit:exception value="org.mule.module.apikit.exception.MethodNotAllowedException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{ &quot;message&quot;: &quot;Method not allowed&quot; }" doc:name="Set Payload"/>
+        </apikit:mapping>
+        <apikit:mapping statusCode="415">
+            <apikit:exception value="org.mule.module.apikit.exception.UnsupportedMediaTypeException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{ &quot;message&quot;: &quot;Unsupported media type&quot; }" doc:name="Set Payload"/>
+        </apikit:mapping>
+        <apikit:mapping statusCode="406">
+            <apikit:exception value="org.mule.module.apikit.exception.NotAcceptableException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{ &quot;message&quot;: &quot;Not acceptable&quot; }" doc:name="Set Payload"/>
+        </apikit:mapping>
+        <apikit:mapping statusCode="400">
+            <apikit:exception value="org.mule.module.apikit.exception.BadRequestException" />
+            <set-property propertyName="Content-Type" value="application/json" doc:name="Property"/>
+            <set-payload value="{&quot;message&quot;: &quot;Parameters not specified&quot;}" doc:name="Set Payload"/>
+        </apikit:mapping>
+    </apikit:mapping-exception-strategy>
+</mule>

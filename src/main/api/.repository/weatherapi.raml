@@ -1,0 +1,59 @@
+#%RAML 1.0
+baseUri: http://weatherapi-tanya.cloudhub.io
+title: weatherapi
+version: 1.0
+
+traits: 
+   hasNotFound:
+    responses:
+      404:
+        body:
+          application/json:
+            example: !include weatherxml/error.json
+      400:
+        body:
+          application/json:
+            example: |
+              {"message": "Parameters not specified"}
+
+/GetCitiesByCountry:
+  description: Collection of cities in a specified Country 
+  get:
+    queryParameters:
+      CountryName:  
+        displayName: CountryName
+        required: true
+        type: string
+    is: [hasNotFound]
+    responses:
+      200:
+        body:
+          application/xml:
+
+      406:
+        body:
+          application/json:
+            example: |
+              {"message": "Request format is invalid"}
+
+/GetWeather:
+  description: Returns the temperature of a specific city
+  get:
+    queryParameters: 
+      CityName:
+        displayName: CityName
+        required: true
+        type: string
+      CountryName:
+        displayName: CityName
+        required: true
+        type: string
+    is: [hasNotFound]    
+    responses:
+      200:
+        body:
+          application/xml:
+
+
+
+
